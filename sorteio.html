@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo de Desafios</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            transition: background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            background-color: white;
+            touch-action: none;
+        }
+
+        .timer-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+        }
+
+        .timer {
+            font-size: 120px;
+            font-weight: 900;
+            color: rgba(0, 0, 0, 0.15);
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .timer.urgent {
+            color: rgba(255, 0, 0, 0.3);
+            animation: urgentPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes urgentPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
+        .instruction {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: 600;
+            color: rgba(0, 0, 0, 0.6);
+            text-align: center;
+            z-index: 99;
+            padding: 20px 40px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .touch-point {
+            position: fixed;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 30px rgba(74, 222, 128, 0.6), 0 0 60px rgba(74, 222, 128, 0.3);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            animation: touchAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes touchAppear {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .touch-point.selecting {
+            animation: selecting 0.6s ease-in-out infinite;
+        }
+
+        @keyframes selecting {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
+            50% { transform: translate(-50%, -50%) scale(1.3); box-shadow: 0 0 50px currentColor, 0 0 100px currentColor; }
+        }
+
+        .touch-point.selected {
+            animation: selectedBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 60px currentColor, 0 0 120px currentColor, 0 0 180px currentColor;
+        }
+
+        @keyframes selectedBounce {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.8); }
+        }
+
+        .challenge-display {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            text-align: center;
+            z-index: 101;
+            padding: 40px 60px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            animation: fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            max-width: 80%;
+        }
+
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translate(-50%, -40%); }
+            100% { opacity: 1; transform: translate(-50%, -50%); }
+        }
+
+        .player-count {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 20px;
+            font-weight: 600;
+            color: rgba(0, 0, 0, 0.5);
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            z-index: 99;
+        }
+    </style>
+</head>
+<body>
+    <div class="instruction" id="instruction">Coloque os dedos na tela!</div>
+    <div class="timer-container">
+        <div class="timer" id="timer">10</div>
+    </div>
+    <div class="player-count" id="playerCount">0 jogadores</div>
+
+    <script>
+        const challenges = [
+            { color: '#fbbf24', name: 'AMARELO', text: 'BEBA UM SHOT DE WHISKY, GIN OU UM GOLE DE CERVEJA!' },
+            { color: '#ef4444', name: 'VERMELHO', text: 'TIRE UMA PEÇA DE ROUPA!' },
+            { color: '#ec4899', name: 'ROSA', text: 'BEIJE ALGUÉM DA RODA!' },
+            { color: '#000000', name: 'PRETO', text: 'ESCOLHA ALGUÉM E FAÇA UMA POSIÇÃO!' },
+            { color: '#3b82f6', name: 'AZUL', text: 'DESAFIO EM DUPLA!' }
+        ];
+
+        let touches = {};
+        let gameState = 'waiting'; // waiting, countdown, selecting, showing
+        let countdown = 10;
+        let timerInterval;
+        let selectedChallenge;
+
+        const timer = document.getElementById('timer');
+        const instruction = document.getElementById('instruction');
+        const playerCount = document.getElementById('playerCount');
+        const body = document.body;
+
+        function updatePlayerCount() {
+            const count = Object.keys(touches).length;
+            playerCount.textContent = `${count} ${count === 1 ? 'jogador' : 'jogadores'}`;
+        }
+
+        function startCountdown() {
+            gameState = 'countdown';
+            countdown = 10;
+            timer.textContent = countdown;
+            instruction.textContent = 'Preparem-se!';
+            
+            timerInterval = setInterval(() => {
+                countdown--;
+                timer.textContent = countdown;
+                
+                if (countdown <= 3) {
+                    timer.classList.add('urgent');
+                }
+                
+                if (countdown <= 0) {
+                    clearInterval(timerInterval);
+                    timer.style.display = 'none';
+                    startSelection();
+                }
+            }, 1000);
+        }
+
+        function startSelection() {
+            const touchIds = Object.keys(touches);
+            if (touchIds.length === 0) {
+                resetGame();
+                return;
+            }
+
+            gameState = 'selecting';
+            selectedChallenge = challenges[Math.floor(Math.random() * challenges.length)];
+            
+            // Mudar cor de fundo
+            body.style.backgroundColor = selectedChallenge.color;
+            instruction.textContent = `Desafio ${selectedChallenge.name}`;
+            instruction.style.color = selectedChallenge.color === '#000000' ? 'white' : 'rgba(0,0,0,0.6)';
+            instruction.style.background = selectedChallenge.color === '#000000' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.9)';
+
+            // Animação de seleção
+            let currentIndex = 0;
+            const selectionSpeed = 150;
+            let iterations = 0;
+            const maxIterations = 20;
+
+            const selectionInterval = setInterval(() => {
+                // Remove seleção anterior
+                touchIds.forEach(id => {
+                    const point = touches[id].element;
+                    point.classList.remove('selecting');
+                    point.style.background = '#4ade80';
+                });
+
+                // Adiciona seleção atual
+                const currentId = touchIds[currentIndex];
+                const point = touches[currentId].element;
+                point.classList.add('selecting');
+                point.style.background = selectedChallenge.color;
+
+                currentIndex = (currentIndex + 1) % touchIds.length;
+                iterations++;
+
+                if (iterations >= maxIterations) {
+                    clearInterval(selectionInterval);
+                    selectWinners(touchIds);
+                }
+            }, selectionSpeed);
+        }
+
+        function selectWinners(touchIds) {
+            if (selectedChallenge.name === 'AZUL') {
+                // Selecionar 2 jogadores
+                const shuffled = [...touchIds].sort(() => Math.random() - 0.5);
+                const winner1 = shuffled[0];
+                const winner2 = shuffled[1];
+
+                touchIds.forEach(id => {
+                    const point = touches[id].element;
+                    point.classList.remove('selecting');
+                    if (id === winner1) {
+                        point.style.background = 'white';
+                        point.classList.add('selected');
+                    } else if (id === winner2) {
+                        point.style.background = '#4ade80';
+                        point.classList.add('selected');
+                    } else {
+                        point.style.opacity = '0.3';
+                    }
+                });
+
+                showChallenge('O JOGADOR BRANCO OBEDECE O JOGADOR VERDE!');
+            } else {
+                // Selecionar 1 jogador
+                const winnerId = touchIds[Math.floor(Math.random() * touchIds.length)];
+                
+                touchIds.forEach(id => {
+                    const point = touches[id].element;
+                    point.classList.remove('selecting');
+                    if (id === winnerId) {
+                        point.style.background = selectedChallenge.color;
+                        point.classList.add('selected');
+                    } else {
+                        point.style.opacity = '0.3';
+                    }
+                });
+
+                showChallenge(selectedChallenge.text);
+            }
+        }
+
+        function showChallenge(text) {
+            gameState = 'showing';
+            const challengeDiv = document.createElement('div');
+            challengeDiv.className = 'challenge-display';
+            challengeDiv.textContent = text;
+            body.appendChild(challengeDiv);
+
+            setTimeout(() => {
+                resetGame();
+            }, 5000);
+        }
+
+        function resetGame() {
+            // Limpar tudo
+            Object.values(touches).forEach(touch => {
+                if (touch.element && touch.element.parentNode) {
+                    touch.element.remove();
+                }
+            });
+            touches = {};
+
+            const challengeDisplay = document.querySelector('.challenge-display');
+            if (challengeDisplay) {
+                challengeDisplay.remove();
+            }
+
+            body.style.backgroundColor = 'white';
+            instruction.textContent = 'Coloque os dedos na tela!';
+            instruction.style.color = 'rgba(0,0,0,0.6)';
+            instruction.style.background = 'rgba(255,255,255,0.9)';
+            timer.textContent = '10';
+            timer.style.display = 'block';
+            timer.classList.remove('urgent');
+            playerCount.textContent = '0 jogadores';
+            
+            gameState = 'waiting';
+            countdown = 10;
+        }
+
+        document.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            
+            if (gameState === 'waiting') {
+                Array.from(e.changedTouches).forEach(touch => {
+                    const point = document.createElement('div');
+                    point.className = 'touch-point';
+                    point.style.left = touch.clientX + 'px';
+                    point.style.top = touch.clientY + 'px';
+                    body.appendChild(point);
+
+                    touches[touch.identifier] = {
+                        element: point,
+                        x: touch.clientX,
+                        y: touch.clientY
+                    };
+                });
+
+                updatePlayerCount();
+
+                if (Object.keys(touches).length > 0 && !timerInterval) {
+                    startCountdown();
+                }
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            
+            if (gameState === 'waiting' || gameState === 'countdown') {
+                Array.from(e.changedTouches).forEach(touch => {
+                    if (touches[touch.identifier]) {
+                        const point = touches[touch.identifier].element;
+                        point.style.left = touch.clientX + 'px';
+                        point.style.top = touch.clientY + 'px';
+                    }
+                });
+            }
+        });
+
+        document.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            
+            if (gameState === 'waiting' || gameState === 'countdown') {
+                Array.from(e.changedTouches).forEach(touch => {
+                    if (touches[touch.identifier]) {
+                        touches[touch.identifier].element.remove();
+                        delete touches[touch.identifier];
+                    }
+                });
+
+                updatePlayerCount();
+
+                if (Object.keys(touches).length === 0 && timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    timer.textContent = '10';
+                    timer.classList.remove('urgent');
+                }
+            }
+        });
+
+        // Suporte para mouse (teste em desktop)
+        let mouseDown = false;
+        document.addEventListener('mousedown', (e) => {
+            if (gameState === 'waiting') {
+                mouseDown = true;
+                const point = document.createElement('div');
+                point.className = 'touch-point';
+                point.style.left = e.clientX + 'px';
+                point.style.top = e.clientY + 'px';
+                body.appendChild(point);
+
+                touches['mouse'] = {
+                    element: point,
+                    x: e.clientX,
+                    y: e.clientY
+                };
+
+                updatePlayerCount();
+                if (!timerInterval) startCountdown();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (mouseDown && (gameState === 'waiting' || gameState === 'countdown')) {
+                if (touches['mouse']) {
+                    touches['mouse'].element.remove();
+                    delete touches['mouse'];
+                }
+                mouseDown = false;
+                updatePlayerCount();
+
+                if (Object.keys(touches).length === 0 && timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    timer.textContent = '10';
+                    timer.classList.remove('urgent');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -14,15 +14,18 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
-            width: 100vw;
-            height: 100vh;
             transition: background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
             background-color: white;
             touch-action: none;
-            position: fixed;
         }
 
         .timer-container {
@@ -183,7 +186,7 @@
             { color: '#3b82f6', name: 'AZUL', text: 'DESAFIO EM DUPLA!' }
         ];
 
-        let touches = {};
+        let activeTouches = {};
         let gameState = 'waiting';
         let countdown = 10;
         let timerInterval = null;
@@ -196,7 +199,7 @@
         const body = document.body;
 
         function updatePlayerCount() {
-            const count = Object.keys(touches).length;
+            const count = Object.keys(activeTouches).length;
             playerCount.textContent = `${count} ${count === 1 ? 'jogador' : 'jogadores'}`;
         }
 
@@ -207,7 +210,7 @@
             countdown = 10;
             timer.textContent = countdown;
             timer.classList.remove('hidden');
-            instruction.textContent = 'Preparem-se!';
+            instruction.textContent = 'Preparem-se! Mais jogadores podem entrar!';
             
             timerInterval = setInterval(() => {
                 countdown--;
@@ -227,7 +230,7 @@
         }
 
         function startSelection() {
-            const touchIds = Object.keys(touches);
+            const touchIds = Object.keys(activeTouches);
             if (touchIds.length === 0) {
                 resetGame();
                 return;
@@ -258,8 +261,8 @@
 
             const selectionInterval = setInterval(() => {
                 touchIds.forEach(id => {
-                    if (touches[id] && touches[id].element) {
-                        const point = touches[id].element;
+                    if (activeTouches[id] && activeTouches[id].element) {
+                        const point = activeTouches[id].element;
                         point.classList.remove('selecting');
                         point.style.background = '#4ade80';
                         point.style.boxShadow = '0 0 30px rgba(74, 222, 128, 0.6), 0 0 60px rgba(74, 222, 128, 0.3)';
@@ -267,8 +270,8 @@
                 });
 
                 const currentId = touchIds[currentIndex];
-                if (touches[currentId] && touches[currentId].element) {
-                    const point = touches[currentId].element;
+                if (activeTouches[currentId] && activeTouches[currentId].element) {
+                    const point = activeTouches[currentId].element;
                     point.classList.add('selecting');
                     point.style.background = selectedChallenge.color;
                 }
@@ -295,8 +298,8 @@
                 const winner2 = shuffled[1];
 
                 touchIds.forEach(id => {
-                    if (touches[id] && touches[id].element) {
-                        const point = touches[id].element;
+                    if (activeTouches[id] && activeTouches[id].element) {
+                        const point = activeTouches[id].element;
                         point.classList.remove('selecting');
                         
                         if (id === winner1) {
@@ -318,8 +321,8 @@
                 const winnerId = touchIds[Math.floor(Math.random() * touchIds.length)];
                 
                 touchIds.forEach(id => {
-                    if (touches[id] && touches[id].element) {
-                        const point = touches[id].element;
+                    if (activeTouches[id] && activeTouches[id].element) {
+                        const point = activeTouches[id].element;
                         point.classList.remove('selecting');
                         
                         if (id === winnerId) {
@@ -362,12 +365,12 @@
                 timerInterval = null;
             }
 
-            Object.values(touches).forEach(touch => {
+            Object.values(activeTouches).forEach(touch => {
                 if (touch.element && touch.element.parentNode) {
                     touch.element.remove();
                 }
             });
-            touches = {};
+            activeTouches = {};
 
             const challengeDisplay = document.querySelector('.challenge-display');
             if (challengeDisplay && challengeDisplay.parentNode) {
@@ -392,88 +395,78 @@
             }, 500);
         }
 
-        document.addEventListener('touchstart', (e) => {
-            if (gameState === 'waiting' && !isResetting) {
+        // Evento principal de touch
+        body.addEventListener('touchstart', function(e) {
+            if (gameState === 'waiting' || gameState === 'countdown') {
                 e.preventDefault();
+                e.stopPropagation();
                 
-                Array.from(e.changedTouches).forEach(touch => {
-                    const point = document.createElement('div');
-                    point.className = 'touch-point';
-                    point.style.left = touch.clientX + 'px';
-                    point.style.top = touch.clientY + 'px';
-                    body.appendChild(point);
+                for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    
+                    if (!activeTouches[touch.identifier]) {
+                        const point = document.createElement('div');
+                        point.className = 'touch-point';
+                        point.style.left = touch.pageX + 'px';
+                        point.style.top = touch.pageY + 'px';
+                        body.appendChild(point);
 
-                    touches[touch.identifier] = {
-                        element: point,
-                        x: touch.clientX,
-                        y: touch.clientY
-                    };
-                });
+                        activeTouches[touch.identifier] = {
+                            element: point,
+                            x: touch.pageX,
+                            y: touch.pageY
+                        };
+                    }
+                }
 
                 updatePlayerCount();
 
-                if (Object.keys(touches).length > 0 && !timerInterval) {
+                if (gameState === 'waiting' && Object.keys(activeTouches).length > 0 && !timerInterval) {
                     startCountdown();
                 }
             }
-        });
+        }, false);
 
-        document.addEventListener('touchmove', (e) => {
-            if ((gameState === 'waiting' || gameState === 'countdown') && !isResetting) {
+        body.addEventListener('touchmove', function(e) {
+            if (gameState === 'waiting' || gameState === 'countdown') {
                 e.preventDefault();
                 
-                Array.from(e.changedTouches).forEach(touch => {
-                    if (touches[touch.identifier] && touches[touch.identifier].element) {
-                        const point = touches[touch.identifier].element;
-                        point.style.left = touch.clientX + 'px';
-                        point.style.top = touch.clientY + 'px';
-                        touches[touch.identifier].x = touch.clientX;
-                        touches[touch.identifier].y = touch.clientY;
+                for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    if (activeTouches[touch.identifier]) {
+                        const point = activeTouches[touch.identifier].element;
+                        point.style.left = touch.pageX + 'px';
+                        point.style.top = touch.pageY + 'px';
                     }
-                });
+                }
             }
-        });
+        }, false);
 
-        document.addEventListener('touchend', (e) => {
-            if ((gameState === 'waiting' || gameState === 'countdown') && !isResetting) {
+        body.addEventListener('touchend', function(e) {
+            if (gameState === 'waiting' || gameState === 'countdown') {
                 e.preventDefault();
                 
-                Array.from(e.changedTouches).forEach(touch => {
-                    if (touches[touch.identifier]) {
-                        if (touches[touch.identifier].element && touches[touch.identifier].element.parentNode) {
-                            touches[touch.identifier].element.remove();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (activeTouches[touch.identifier]) {
+                        if (activeTouches[touch.identifier].element) {
+                            activeTouches[touch.identifier].element.remove();
                         }
-                        delete touches[touch.identifier];
+                        delete activeTouches[touch.identifier];
                     }
-                });
+                }
 
                 updatePlayerCount();
 
-                if (Object.keys(touches).length === 0 && timerInterval) {
+                if (Object.keys(activeTouches).length === 0 && timerInterval) {
                     clearInterval(timerInterval);
                     timerInterval = null;
                     timer.textContent = '10';
                     timer.classList.remove('urgent');
+                    instruction.textContent = 'Coloque os dedos na tela!';
                 }
             }
-        });
-
-        document.addEventListener('touchcancel', (e) => {
-            if ((gameState === 'waiting' || gameState === 'countdown') && !isResetting) {
-                e.preventDefault();
-                
-                Array.from(e.changedTouches).forEach(touch => {
-                    if (touches[touch.identifier]) {
-                        if (touches[touch.identifier].element && touches[touch.identifier].element.parentNode) {
-                            touches[touch.identifier].element.remove();
-                        }
-                        delete touches[touch.identifier];
-                    }
-                });
-
-                updatePlayerCount();
-            }
-        });
+        }, false);
     </script>
 </body>
 </html>

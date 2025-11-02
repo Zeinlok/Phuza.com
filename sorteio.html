@@ -326,8 +326,8 @@
                         point.classList.remove('selecting');
                         
                         if (id === winnerId) {
-                            point.style.background = selectedChallenge.color;
-                            point.style.boxShadow = `0 0 60px ${selectedChallenge.color}, 0 0 120px ${selectedChallenge.color}`;
+                            point.style.background = 'white';
+                            point.style.boxShadow = '0 0 60px rgba(255, 255, 255, 0.9), 0 0 120px rgba(255, 255, 255, 0.6)';
                             point.classList.add('selected');
                         } else {
                             point.style.opacity = '0.2';
@@ -464,6 +464,7 @@
                     timer.textContent = '10';
                     timer.classList.remove('urgent');
                     instruction.textContent = 'Coloque os dedos na tela!';
+                    gameState = 'waiting';
                 }
             }
         }, false);

@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Jogo de Desafios</title>
     <style>
         * {
@@ -11,6 +11,7 @@
             box-sizing: border-box;
             -webkit-user-select: none;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -21,6 +22,7 @@
             transition: background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
             background-color: white;
             touch-action: none;
+            position: fixed;
         }
 
         .timer-container {
@@ -29,6 +31,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 100;
+            pointer-events: none;
         }
 
         .timer {
@@ -42,6 +45,10 @@
         .timer.urgent {
             color: rgba(255, 0, 0, 0.3);
             animation: urgentPulse 0.5s ease-in-out infinite;
+        }
+
+        .timer.hidden {
+            display: none;
         }
 
         @keyframes pulse {
@@ -68,6 +75,8 @@
             background: rgba(255, 255, 255, 0.9);
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            pointer-events: none;
         }
 
         .touch-point {
@@ -81,6 +90,7 @@
             transform: translate(-50%, -50%);
             z-index: 50;
             animation: touchAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: background 0.3s ease, opacity 0.3s ease;
         }
 
         @keyframes touchAppear {
@@ -93,13 +103,19 @@
         }
 
         @keyframes selecting {
-            0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
-            50% { transform: translate(-50%, -50%) scale(1.3); box-shadow: 0 0 50px currentColor, 0 0 100px currentColor; }
+            0%, 100% { 
+                transform: translate(-50%, -50%) scale(1); 
+                box-shadow: 0 0 30px currentColor, 0 0 60px currentColor; 
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.3); 
+                box-shadow: 0 0 50px currentColor, 0 0 100px currentColor; 
+            }
         }
 
         .touch-point.selected {
             animation: selectedBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 0 60px currentColor, 0 0 120px currentColor, 0 0 180px currentColor;
+            box-shadow: 0 0 60px currentColor, 0 0 120px currentColor, 0 0 180px currentColor !important;
         }
 
         @keyframes selectedBounce {
@@ -112,18 +128,20 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 36px;
+            font-size: 32px;
             font-weight: 700;
             color: white;
             text-align: center;
             z-index: 101;
             padding: 40px 60px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             border-radius: 30px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
             opacity: 0;
             animation: fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            max-width: 80%;
+            max-width: 85%;
+            line-height: 1.4;
+            pointer-events: none;
         }
 
         @keyframes fadeInUp {
@@ -144,6 +162,8 @@
             border-radius: 50px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             z-index: 99;
+            pointer-events: none;
+            transition: all 0.3s ease;
         }
     </style>
 </head>
@@ -164,10 +184,11 @@
         ];
 
         let touches = {};
-        let gameState = 'waiting'; // waiting, countdown, selecting, showing
+        let gameState = 'waiting';
         let countdown = 10;
-        let timerInterval;
-        let selectedChallenge;
+        let timerInterval = null;
+        let selectedChallenge = null;
+        let isResetting = false;
 
         const timer = document.getElementById('timer');
         const instruction = document.getElementById('instruction');
@@ -180,9 +201,12 @@
         }
 
         function startCountdown() {
+            if (timerInterval) return;
+            
             gameState = 'countdown';
             countdown = 10;
             timer.textContent = countdown;
+            timer.classList.remove('hidden');
             instruction.textContent = 'Preparem-se!';
             
             timerInterval = setInterval(() => {
@@ -195,8 +219,9 @@
                 
                 if (countdown <= 0) {
                     clearInterval(timerInterval);
-                    timer.style.display = 'none';
-                    startSelection();
+                    timerInterval = null;
+                    timer.classList.add('hidden');
+                    setTimeout(() => startSelection(), 300);
                 }
             }, 1000);
         }
@@ -211,31 +236,42 @@
             gameState = 'selecting';
             selectedChallenge = challenges[Math.floor(Math.random() * challenges.length)];
             
-            // Mudar cor de fundo
             body.style.backgroundColor = selectedChallenge.color;
             instruction.textContent = `Desafio ${selectedChallenge.name}`;
-            instruction.style.color = selectedChallenge.color === '#000000' ? 'white' : 'rgba(0,0,0,0.6)';
-            instruction.style.background = selectedChallenge.color === '#000000' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.9)';
+            
+            if (selectedChallenge.color === '#000000') {
+                instruction.style.color = 'white';
+                instruction.style.background = 'rgba(255, 255, 255, 0.2)';
+                playerCount.style.color = 'white';
+                playerCount.style.background = 'rgba(255, 255, 255, 0.2)';
+            } else {
+                instruction.style.color = 'rgba(0, 0, 0, 0.8)';
+                instruction.style.background = 'rgba(255, 255, 255, 0.9)';
+                playerCount.style.color = 'rgba(0, 0, 0, 0.5)';
+                playerCount.style.background = 'rgba(255, 255, 255, 0.9)';
+            }
 
-            // Animação de seleção
             let currentIndex = 0;
-            const selectionSpeed = 150;
+            const selectionSpeed = 120;
             let iterations = 0;
-            const maxIterations = 20;
+            const maxIterations = 25;
 
             const selectionInterval = setInterval(() => {
-                // Remove seleção anterior
                 touchIds.forEach(id => {
-                    const point = touches[id].element;
-                    point.classList.remove('selecting');
-                    point.style.background = '#4ade80';
+                    if (touches[id] && touches[id].element) {
+                        const point = touches[id].element;
+                        point.classList.remove('selecting');
+                        point.style.background = '#4ade80';
+                        point.style.boxShadow = '0 0 30px rgba(74, 222, 128, 0.6), 0 0 60px rgba(74, 222, 128, 0.3)';
+                    }
                 });
 
-                // Adiciona seleção atual
                 const currentId = touchIds[currentIndex];
-                const point = touches[currentId].element;
-                point.classList.add('selecting');
-                point.style.background = selectedChallenge.color;
+                if (touches[currentId] && touches[currentId].element) {
+                    const point = touches[currentId].element;
+                    point.classList.add('selecting');
+                    point.style.background = selectedChallenge.color;
+                }
 
                 currentIndex = (currentIndex + 1) % touchIds.length;
                 iterations++;
@@ -249,38 +285,50 @@
 
         function selectWinners(touchIds) {
             if (selectedChallenge.name === 'AZUL') {
-                // Selecionar 2 jogadores
+                if (touchIds.length < 2) {
+                    showChallenge('JOGADORES INSUFICIENTES! Precisa de pelo menos 2 jogadores.');
+                    return;
+                }
+
                 const shuffled = [...touchIds].sort(() => Math.random() - 0.5);
                 const winner1 = shuffled[0];
                 const winner2 = shuffled[1];
 
                 touchIds.forEach(id => {
-                    const point = touches[id].element;
-                    point.classList.remove('selecting');
-                    if (id === winner1) {
-                        point.style.background = 'white';
-                        point.classList.add('selected');
-                    } else if (id === winner2) {
-                        point.style.background = '#4ade80';
-                        point.classList.add('selected');
-                    } else {
-                        point.style.opacity = '0.3';
+                    if (touches[id] && touches[id].element) {
+                        const point = touches[id].element;
+                        point.classList.remove('selecting');
+                        
+                        if (id === winner1) {
+                            point.style.background = 'white';
+                            point.style.boxShadow = '0 0 60px rgba(255, 255, 255, 0.9), 0 0 120px rgba(255, 255, 255, 0.6)';
+                            point.classList.add('selected');
+                        } else if (id === winner2) {
+                            point.style.background = '#4ade80';
+                            point.style.boxShadow = '0 0 60px rgba(74, 222, 128, 0.9), 0 0 120px rgba(74, 222, 128, 0.6)';
+                            point.classList.add('selected');
+                        } else {
+                            point.style.opacity = '0.2';
+                        }
                     }
                 });
 
                 showChallenge('O JOGADOR BRANCO OBEDECE O JOGADOR VERDE!');
             } else {
-                // Selecionar 1 jogador
                 const winnerId = touchIds[Math.floor(Math.random() * touchIds.length)];
                 
                 touchIds.forEach(id => {
-                    const point = touches[id].element;
-                    point.classList.remove('selecting');
-                    if (id === winnerId) {
-                        point.style.background = selectedChallenge.color;
-                        point.classList.add('selected');
-                    } else {
-                        point.style.opacity = '0.3';
+                    if (touches[id] && touches[id].element) {
+                        const point = touches[id].element;
+                        point.classList.remove('selecting');
+                        
+                        if (id === winnerId) {
+                            point.style.background = selectedChallenge.color;
+                            point.style.boxShadow = `0 0 60px ${selectedChallenge.color}, 0 0 120px ${selectedChallenge.color}`;
+                            point.classList.add('selected');
+                        } else {
+                            point.style.opacity = '0.2';
+                        }
                     }
                 });
 
@@ -296,12 +344,24 @@
             body.appendChild(challengeDiv);
 
             setTimeout(() => {
+                if (challengeDiv.parentNode) {
+                    challengeDiv.remove();
+                }
                 resetGame();
-            }, 5000);
+            }, 6000);
         }
 
         function resetGame() {
-            // Limpar tudo
+            if (isResetting) return;
+            isResetting = true;
+
+            gameState = 'resetting';
+
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
             Object.values(touches).forEach(touch => {
                 if (touch.element && touch.element.parentNode) {
                     touch.element.remove();
@@ -310,27 +370,32 @@
             touches = {};
 
             const challengeDisplay = document.querySelector('.challenge-display');
-            if (challengeDisplay) {
+            if (challengeDisplay && challengeDisplay.parentNode) {
                 challengeDisplay.remove();
             }
 
-            body.style.backgroundColor = 'white';
-            instruction.textContent = 'Coloque os dedos na tela!';
-            instruction.style.color = 'rgba(0,0,0,0.6)';
-            instruction.style.background = 'rgba(255,255,255,0.9)';
-            timer.textContent = '10';
-            timer.style.display = 'block';
-            timer.classList.remove('urgent');
-            playerCount.textContent = '0 jogadores';
-            
-            gameState = 'waiting';
-            countdown = 10;
+            setTimeout(() => {
+                body.style.backgroundColor = 'white';
+                instruction.textContent = 'Coloque os dedos na tela!';
+                instruction.style.color = 'rgba(0, 0, 0, 0.6)';
+                instruction.style.background = 'rgba(255, 255, 255, 0.9)';
+                timer.textContent = '10';
+                timer.classList.remove('hidden', 'urgent');
+                playerCount.textContent = '0 jogadores';
+                playerCount.style.color = 'rgba(0, 0, 0, 0.5)';
+                playerCount.style.background = 'rgba(255, 255, 255, 0.9)';
+                
+                gameState = 'waiting';
+                countdown = 10;
+                selectedChallenge = null;
+                isResetting = false;
+            }, 500);
         }
 
         document.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            
-            if (gameState === 'waiting') {
+            if (gameState === 'waiting' && !isResetting) {
+                e.preventDefault();
+                
                 Array.from(e.changedTouches).forEach(touch => {
                     const point = document.createElement('div');
                     point.className = 'touch-point';
@@ -354,26 +419,30 @@
         });
 
         document.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            
-            if (gameState === 'waiting' || gameState === 'countdown') {
+            if ((gameState === 'waiting' || gameState === 'countdown') && !isResetting) {
+                e.preventDefault();
+                
                 Array.from(e.changedTouches).forEach(touch => {
-                    if (touches[touch.identifier]) {
+                    if (touches[touch.identifier] && touches[touch.identifier].element) {
                         const point = touches[touch.identifier].element;
                         point.style.left = touch.clientX + 'px';
                         point.style.top = touch.clientY + 'px';
+                        touches[touch.identifier].x = touch.clientX;
+                        touches[touch.identifier].y = touch.clientY;
                     }
                 });
             }
         });
 
         document.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            
-            if (gameState === 'waiting' || gameState === 'countdown') {
+            if ((gameState === 'waiting' || gameState === 'countdown') && !isResetting) {
+                e.preventDefault();
+                
                 Array.from(e.changedTouches).forEach(touch => {
                     if (touches[touch.identifier]) {
-                        touches[touch.identifier].element.remove();
+                        if (touches[touch.identifier].element && touches[touch.identifier].element.parentNode) {
+                            touches[touch.identifier].element.remove();
+                        }
                         delete touches[touch.identifier];
                     }
                 });
@@ -389,43 +458,20 @@
             }
         });
 
-        // Suporte para mouse (teste em desktop)
-        let mouseDown = false;
-        document.addEventListener('mousedown', (e) => {
-            if (gameState === 'waiting') {
-                mouseDown = true;
-                const point = document.createElement('div');
-                point.className = 'touch-point';
-                point.style.left = e.clientX + 'px';
-                point.style.top = e.clientY + 'px';
-                body.appendChild(point);
-
-                touches['mouse'] = {
-                    element: point,
-                    x: e.clientX,
-                    y: e.clientY
-                };
+        document.addEventListener('touchcancel', (e) => {
+            if ((gameState === 'waiting' || gameState === 'countdown') && !isResetting) {
+                e.preventDefault();
+                
+                Array.from(e.changedTouches).forEach(touch => {
+                    if (touches[touch.identifier]) {
+                        if (touches[touch.identifier].element && touches[touch.identifier].element.parentNode) {
+                            touches[touch.identifier].element.remove();
+                        }
+                        delete touches[touch.identifier];
+                    }
+                });
 
                 updatePlayerCount();
-                if (!timerInterval) startCountdown();
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (mouseDown && (gameState === 'waiting' || gameState === 'countdown')) {
-                if (touches['mouse']) {
-                    touches['mouse'].element.remove();
-                    delete touches['mouse'];
-                }
-                mouseDown = false;
-                updatePlayerCount();
-
-                if (Object.keys(touches).length === 0 && timerInterval) {
-                    clearInterval(timerInterval);
-                    timerInterval = null;
-                    timer.textContent = '10';
-                    timer.classList.remove('urgent');
-                }
             }
         });
     </script>
